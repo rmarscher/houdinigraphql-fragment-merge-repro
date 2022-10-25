@@ -1,0 +1,34 @@
+type Article implements Content & Node {
+  id: ID!
+  images: ArticleImages!
+  name: String!
+}
+
+type ArticleImages {
+  author: String
+  header: String
+}
+
+interface Content {
+  name: String!
+}
+
+interface Node {
+  id: ID!
+}
+
+type Page implements Content & Node {
+  id: ID!
+  images: PageImages!
+  name: String!
+}
+
+type PageImages {
+  footer: String
+  header: String
+}
+
+type Query {
+  allContent: [Content!]!
+  node(id: ID!): Node
+}

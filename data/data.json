@@ -1,0 +1,22 @@
+{
+	"content": [
+    {
+      "__typename": "Page",
+      "id": "12345",
+      "name": "Home",
+      "images": {
+        "header": "header",
+        "footer": "footer"
+      }
+    },
+    {
+      "__typename": "Article",
+      "id": "56789",
+      "name": "Some Post",
+      "images": {
+        "header": "header",
+        "author": "me"
+      }
+    }
+  ]
+}
