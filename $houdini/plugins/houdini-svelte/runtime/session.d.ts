@@ -9,7 +9,7 @@ export declare class RequestContext {
     returnValue: {};
     constructor(ctx: LoadEvent);
     error(status: number, message: string | Error): any;
-    redirect(status: number, location: string): any;
+    redirect(status: 300 | 301 | 302 | 303 | 304 | 305 | 306 | 307 | 308, location: string): any;
     fetch(input: RequestInfo, init?: RequestInit): Promise<Response>;
     graphqlErrors(payload: {
         errors?: GraphQLError[];

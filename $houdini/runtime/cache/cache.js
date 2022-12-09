@@ -1,5 +1,6 @@
 import { defaultConfigValues, computeID, keyFieldsForType } from "../lib/config";
 import { deepEquals } from "../lib/deepEquals";
+import { getFieldsForType } from "../lib/selection";
 import { GarbageCollector } from "./gc";
 import { ListManager } from "./lists";
 import { InMemoryStorage } from "./storage";
@@ -67,8 +68,8 @@ class Cache {
       variables
     );
   }
-  list(name, parentID) {
-    const handler = this._internal_unstable.lists.get(name, parentID);
+  list(name, parentID, allLists) {
+    const handler = this._internal_unstable.lists.get(name, parentID, allLists);
     if (!handler) {
       throw new Error(
         `Cannot find list with name: ${name}${parentID ? " under parent " + parentID : ""}. Is it possible that the query is not mounted?`
@@ -112,7 +113,7 @@ class CacheInternal {
     this.cache = cache;
     this.lifetimes = lifetimes;
     try {
-      this._disabled = process.env.TEST !== "true";
+      this._disabled = process.env.HOUDINI_TEST !== "true";
     } catch {
       this._disabled = typeof globalThis.window === "undefined";
     }
@@ -134,8 +135,9 @@ class CacheInternal {
     if (this._disabled) {
       return [];
     }
+    let targetSelection = getFieldsForType(selection, data["__typename"]);
     for (const [field, value] of Object.entries(data)) {
-      if (!selection || !selection[field]) {
+      if (!selection || !targetSelection[field]) {
         throw new Error(
           "Could not find field listing in selection for " + field + " @ " + JSON.stringify(selection)
         );
@@ -143,11 +145,11 @@ class CacheInternal {
       let {
         type: linkedType,
         keyRaw,
-        fields,
+        selection: fieldSelection,
         operations,
         abstract: isAbstract,
         update
-      } = selection[field];
+      } = targetSelection[field];
       const key = evaluateKey(keyRaw, variables);
       const currentSubscribers = this.subscriptions.get(parent, key);
       const { value: previousValue, displayLayers } = this.storage.get(parent, key);
@@ -155,7 +157,7 @@ class CacheInternal {
       if (displayLayer) {
         this.lifetimes.resetLifetime(parent, key);
       }
-      if (!fields) {
+      if (!fieldSelection) {
         let newValue = value;
         if (Array.isArray(value) && applyUpdates && update) {
           if (update === "append") {
@@ -175,7 +177,7 @@ class CacheInternal {
         }
         const previousLinks = flattenList([previousValue]);
         for (const link of previousLinks) {
-          this.subscriptions.remove(link, fields, currentSubscribers, variables);
+          this.subscriptions.remove(link, fieldSelection, currentSubscribers, variables);
         }
         layer.writeLink(parent, key, null);
         toNotify.push(...currentSubscribers);
@@ -201,30 +203,31 @@ class CacheInternal {
           if (previousValue && typeof previousValue === "string") {
             this.subscriptions.remove(
               previousValue,
-              fields,
+              fieldSelection,
               currentSubscribers,
               variables
             );
           }
           this.subscriptions.addMany({
             parent: linkedID,
-            selection: fields,
+            selection: fieldSelection,
             subscribers: currentSubscribers,
-            variables
+            variables,
+            parentType: linkedType
           });
           toNotify.push(...currentSubscribers);
         }
         if (linkedID) {
           this.writeSelection({
             root,
-            selection: fields,
+            selection: fieldSelection,
             parent: linkedID,
             data: value,
             variables,
             toNotify,
             applyUpdates,
             layer,
-            forceNotify: true
+            forceNotify
           });
         }
       } else if (Array.isArray(value) && (typeof previousValue === "undefined" || Array.isArray(previousValue))) {
@@ -253,7 +256,7 @@ class CacheInternal {
           key,
           linkedType,
           variables,
-          fields,
+          fields: fieldSelection,
           layer,
           forceNotify
         });
@@ -303,7 +306,7 @@ class CacheInternal {
           if (linkedIDs.includes(lostID) || !lostID) {
             continue;
           }
-          this.subscriptions.remove(lostID, fields, currentSubscribers, variables);
+          this.subscriptions.remove(lostID, fieldSelection, currentSubscribers, variables);
         }
         if (contentChanged || oldIDs.length === 0 && newIDs.length === 0) {
           layer.writeLink(parent, key, linkedIDs);
@@ -314,9 +317,10 @@ class CacheInternal {
           }
           this.subscriptions.addMany({
             parent: id,
-            selection: fields,
+            selection: fieldSelection,
             subscribers: currentSubscribers,
-            variables
+            variables,
+            parentType: linkedType
           });
         }
       }
@@ -333,15 +337,20 @@ class CacheInternal {
             parentID = id;
           }
         }
-        if (operation.list && !this.lists.get(operation.list, parentID)) {
+        if (operation.list && !this.lists.get(operation.list, parentID, operation.target === "all")) {
           continue;
         }
         const targets = Array.isArray(value) ? value : [value];
         for (const target of targets) {
-          if (operation.action === "insert" && target instanceof Object && fields && operation.list) {
-            this.cache.list(operation.list, parentID).when(operation.when).addToList(fields, target, variables, operation.position || "last");
-          } else if (operation.action === "remove" && target instanceof Object && fields && operation.list) {
-            this.cache.list(operation.list, parentID).when(operation.when).remove(target, variables);
+          if (operation.action === "insert" && target instanceof Object && fieldSelection && operation.list) {
+            this.cache.list(operation.list, parentID, operation.target === "all").when(operation.when).addToList(
+              fieldSelection,
+              target,
+              variables,
+              operation.position || "last"
+            );
+          } else if (operation.action === "remove" && target instanceof Object && fieldSelection && operation.list) {
+            this.cache.list(operation.list, parentID, operation.target === "all").when(operation.when).remove(target, variables);
           } else if (operation.action === "delete" && operation.type) {
             if (typeof target !== "string") {
               throw new Error("Cannot delete a record with a non-string ID");
@@ -351,8 +360,13 @@ class CacheInternal {
               continue;
             }
             this.cache.delete(targetID);
-          } else if (operation.action === "toggle" && target instanceof Object && fields && operation.list) {
-            this.cache.list(operation.list, parentID).when(operation.when).toggleElement(fields, target, variables, operation.position || "last");
+          } else if (operation.action === "toggle" && target instanceof Object && fieldSelection && operation.list) {
+            this.cache.list(operation.list, parentID, operation.target === "all").when(operation.when).toggleElement(
+              fieldSelection,
+              target,
+              variables,
+              operation.position || "last"
+            );
           }
         }
       }
@@ -372,9 +386,12 @@ class CacheInternal {
     let hasData = false;
     let partial = false;
     let cascadeNull = false;
-    for (const [attributeName, { type, keyRaw, fields, nullable, list }] of Object.entries(
-      selection
-    )) {
+    const typename = this.storage.get(parent, "__typename").value;
+    let targetSelection = getFieldsForType(selection, typename);
+    for (const [
+      attributeName,
+      { type, keyRaw, selection: fieldSelection, nullable, list }
+    ] of Object.entries(targetSelection)) {
       const key = evaluateKey(keyRaw, variables);
       const { value } = this.storage.get(parent, key);
       let nextStep = stepsFromConnection;
@@ -397,7 +414,7 @@ class CacheInternal {
         if (typeof value !== "undefined") {
           hasData = true;
         }
-      } else if (!fields) {
+      } else if (!fieldSelection) {
         const fnUnmarshal = this.config?.scalars?.[type]?.unmarshal;
         if (fnUnmarshal) {
           target[attributeName] = fnUnmarshal(value);
@@ -407,7 +424,7 @@ class CacheInternal {
         hasData = true;
       } else if (Array.isArray(value)) {
         const listValue = this.hydrateNestedList({
-          fields,
+          fields: fieldSelection,
           variables,
           linkedList: value,
           stepsFromConnection: nextStep
@@ -422,7 +439,7 @@ class CacheInternal {
       } else {
         const objectFields = this.getSelection({
           parent: value,
-          selection: fields,
+          selection: fieldSelection,
           variables,
           stepsFromConnection: nextStep
         });

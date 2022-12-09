@@ -1,10 +1,4 @@
-export declare function goTo(href: string, opts?: {
-    replaceState?: boolean;
-    noscroll?: boolean;
-    keepfocus?: boolean;
-    state?: any;
-}): Promise<void>;
-export declare const isBrowser = false;
+export declare const isBrowser = true;
 /**
  *  After `clientStarted = true`, only client side navigation will happen.
  */

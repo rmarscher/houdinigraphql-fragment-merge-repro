@@ -1,12 +1,5 @@
-import { goto as go } from '$app/navigation'
-import { get } from 'svelte/store';
-import { browser, prerendering } from '$app/environment'
-import { page } from '$app/stores'
+import { browser, building } from '$app/environment'
 import { error as svelteKitError } from '@sveltejs/kit'
-
-export function goTo(location, options) {
-		go(location, options)
-}
 
 export const isBrowser = browser
 
@@ -16,6 +9,6 @@ export function setClientStarted() {
 	clientStarted = true
 }
 
-export const isPrerender = prerendering
+export const isPrerender = building
 
 export const error = svelteKitError

@@ -3,12 +3,13 @@ import { deepEquals } from "$houdini/runtime/lib/deepEquals";
 import * as log from "$houdini/runtime/lib/log";
 import { fetchQuery } from "$houdini/runtime/lib/network";
 import { marshalInputs, unmarshalSelection } from "$houdini/runtime/lib/scalars";
-import { CachePolicy, DataSource } from "$houdini/runtime/lib/types";
 import {
-  CompiledQueryKind
+  CachePolicy,
+  CompiledQueryKind,
+  DataSource
 } from "$houdini/runtime/lib/types";
 import { get, writable } from "svelte/store";
-import { clientStarted, isBrowser, error } from "../adapter";
+import { clientStarted, error, isBrowser } from "../adapter";
 import { getCurrentClient } from "../network";
 import { getSession } from "../session";
 import { BaseStore } from "./store";
@@ -22,6 +23,12 @@ class QueryStore extends BaseStore {
   loadPending = false;
   subscriberCount = 0;
   storeName;
+  setFetching(isFetching) {
+    this.store?.update((s) => ({ ...s, isFetching }));
+  }
+  async currentVariables() {
+    return get(this.store).variables;
+  }
   constructor({ artifact, storeName, variables }) {
     super();
     this.store = writable(this.initialState);
@@ -31,7 +38,6 @@ class QueryStore extends BaseStore {
   }
   async fetch(args) {
     const config = await this.getConfig();
-    getCache().setConfig(config);
     const { policy, params, context } = await fetchParams(this.artifact, this.storeName, args);
     const isLoadFetch = Boolean("event" in params && params.event);
     const isComponentFetch = !isLoadFetch;
@@ -50,9 +56,7 @@ class QueryStore extends BaseStore {
     }
     if (this.loadPending && isComponentFetch) {
       log.error(`\u26A0\uFE0F Encountered fetch from your component while ${this.storeName}.load was running.
-This will result in duplicate queries. If you are trying to ensure there is always a good value, please a CachePolicy instead.
-If this is leftovers from old versions of houdini, you can safely remove this \`${this.storeName}\`.fetch() from your component.
-`);
+This will result in duplicate queries. If you are trying to ensure there is always a good value, please a CachePolicy instead.`);
       return get(this.store);
     }
     if (isComponentFetch) {
@@ -61,9 +65,7 @@ If this is leftovers from old versions of houdini, you can safely remove this \`
     if (isLoadFetch) {
       this.loadPending = true;
     }
-    const fakeAwait = clientStarted && isBrowser && !params?.blocking;
-    this.setFetching(true);
-    const request = this.fetchAndCache({
+    const fetchArgs = {
       config,
       context,
       artifact: this.artifact,
@@ -74,7 +76,22 @@ If this is leftovers from old versions of houdini, you can safely remove this \`
         this.loadPending = val;
         this.setFetching(val);
       }
-    });
+    };
+    const fakeAwait = clientStarted && isBrowser && !params?.blocking;
+    if (policy !== CachePolicy.NetworkOnly && fakeAwait) {
+      const cachedStore = await this.fetchAndCache({
+        ...fetchArgs,
+        rawCacheOnlyResult: true
+      });
+      if (cachedStore && cachedStore?.result.data) {
+        this.store.update((s) => ({
+          ...s,
+          data: cachedStore?.result.data,
+          isFetching: false
+        }));
+      }
+    }
+    const request = this.fetchAndCache(fetchArgs);
     if (params.then) {
       request.then((val) => params.then?.(val.result.data));
     }
@@ -85,9 +102,6 @@ If this is leftovers from old versions of houdini, you can safely remove this \`
   }
   get name() {
     return this.artifact.name;
-  }
-  async currentVariables() {
-    return get(this.store).variables;
   }
   subscribe(...args) {
     const bubbleUp = this.store.subscribe(...args);
@@ -115,18 +129,23 @@ If this is leftovers from old versions of houdini, you can safely remove this \`
     ignoreFollowup,
     setLoadPending,
     policy,
-    context
+    context,
+    rawCacheOnlyResult = false
   }) {
     const request = await fetchQuery({
       ...context,
       client: await getCurrentClient(),
+      setFetching: (val) => this.setFetching(val),
       artifact,
       variables,
       cached,
-      policy,
+      policy: rawCacheOnlyResult ? CachePolicy.CacheOnly : policy,
       context
     });
     const { result, source, partial } = request;
+    if (rawCacheOnlyResult) {
+      return request;
+    }
     setLoadPending(false);
     if (result.data && source !== DataSource.Cache) {
       getCache().write({
@@ -203,14 +222,11 @@ If this is leftovers from old versions of houdini, you can safely remove this \`
     cache.subscribe(this.subscriptionSpec, newVariables);
     this.lastVariables = newVariables;
   }
-  setFetching(isFetching) {
-    this.store?.update((s) => ({ ...s, isFetching }));
-  }
   get initialState() {
     return {
       data: null,
       errors: null,
-      isFetching: false,
+      isFetching: true,
       partial: false,
       source: null,
       variables: {},
@@ -269,7 +285,7 @@ import type { LoadEvent } from '@sveltejs/kit';
 
 export async function load(${log.yellow("event")}: LoadEvent) {
 	return {
-		...load_MyQuery({ ${log.yellow("event")}, variables: { ... } })
+		...load_${storeName}({ ${log.yellow("event")}, variables: { ... } })
 	};
 }
 `;

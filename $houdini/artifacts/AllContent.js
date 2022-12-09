@@ -1,7 +1,7 @@
 export default {
     name: "AllContent",
     kind: "HoudiniQuery",
-    hash: "4d0368550bb45221a3169a4c8e5e965fe4adc6abc9dd42b47e97746941ea1df2",
+    hash: "4d64b5a27bd572ea4d532add332b29d2489ca7d2c269b9e1bb6c36c61d0191f1",
 
     raw: `query AllContent {
   allContent {
@@ -13,7 +13,7 @@ export default {
       }
     }
     ... on Article {
-      articleImages: images {
+      images {
         header
         author
       }
@@ -25,61 +25,99 @@ export default {
     rootType: "Query",
 
     selection: {
-        allContent: {
-            type: "Content",
-            keyRaw: "allContent",
+        fields: {
+            allContent: {
+                type: "Content",
+                keyRaw: "allContent",
 
-            fields: {
-                name: {
-                    type: "String",
-                    keyRaw: "name"
-                },
+                selection: {
+                    abstractFields: {
+                        fields: {
+                            Page: {
+                                images: {
+                                    type: "PageImages",
+                                    keyRaw: "images",
 
-                images: {
-                    type: "PageImages",
-                    keyRaw: "images",
+                                    selection: {
+                                        fields: {
+                                            header: {
+                                                type: "String",
+                                                keyRaw: "header",
+                                                nullable: true
+                                            },
 
-                    fields: {
-                        header: {
-                            type: "String",
-                            keyRaw: "header",
-                            nullable: true
+                                            footer: {
+                                                type: "String",
+                                                keyRaw: "footer",
+                                                nullable: true
+                                            }
+                                        }
+                                    }
+                                },
+
+                                name: {
+                                    type: "String",
+                                    keyRaw: "name"
+                                },
+
+                                __typename: {
+                                    type: "String",
+                                    keyRaw: "__typename"
+                                }
+                            },
+
+                            Article: {
+                                images: {
+                                    type: "ArticleImages",
+                                    keyRaw: "images",
+
+                                    selection: {
+                                        fields: {
+                                            header: {
+                                                type: "String",
+                                                keyRaw: "header",
+                                                nullable: true
+                                            },
+
+                                            author: {
+                                                type: "String",
+                                                keyRaw: "author",
+                                                nullable: true
+                                            }
+                                        }
+                                    }
+                                },
+
+                                name: {
+                                    type: "String",
+                                    keyRaw: "name"
+                                },
+
+                                __typename: {
+                                    type: "String",
+                                    keyRaw: "__typename"
+                                }
+                            }
                         },
 
-                        footer: {
+                        typeMap: {}
+                    },
+
+                    fields: {
+                        name: {
                             type: "String",
-                            keyRaw: "footer",
-                            nullable: true
+                            keyRaw: "name"
+                        },
+
+                        __typename: {
+                            type: "String",
+                            keyRaw: "__typename"
                         }
                     }
                 },
 
-                articleImages: {
-                    type: "ArticleImages",
-                    keyRaw: "articleImages",
-
-                    fields: {
-                        header: {
-                            type: "String",
-                            keyRaw: "header",
-                            nullable: true
-                        },
-
-                        author: {
-                            type: "String",
-                            keyRaw: "author",
-                            nullable: true
-                        }
-                    }
-                },
-
-                __typename: {
-                    type: "String",
-                    keyRaw: "__typename"
-                }
-            },
-
-            abstract: true
+                abstract: true
+            }
         }
     },
 
@@ -87,4 +125,4 @@ export default {
     partial: false
 };
 
-"HoudiniHash=de3c0b0ed1427954f9b2d00e76de8c2bf36a985622b5e8cd8c4f927d4f0afd28";
+"HoudiniHash=c68bb5fe4d89c03e1eef162cfc2be33cb7cc668002012408887c0bc089b1da07";

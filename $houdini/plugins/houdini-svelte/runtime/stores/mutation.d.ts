@@ -6,6 +6,7 @@ export declare class MutationStore<_Data extends GraphQLObject, _Input extends {
     artifact: MutationArtifact;
     kind: "HoudiniMutation";
     private store;
+    protected setFetching(isFetching: boolean): void;
     constructor({ artifact }: {
         artifact: MutationArtifact;
     });
@@ -14,7 +15,7 @@ export declare class MutationStore<_Data extends GraphQLObject, _Input extends {
         fetch?: typeof globalThis.fetch;
     } & MutationConfig<_Data, _Input, _Optimistic>): Promise<_Data>;
     subscribe(...args: Parameters<Readable<MutationResult<_Data, _Input>>['subscribe']>): import("svelte/store").Unsubscriber;
-    private get nullState();
+    private get initialState();
 }
 export declare type MutationConfig<_Result, _Input, _Optimistic> = {
     optimisticResponse?: _Optimistic;

@@ -1,3 +1,4 @@
+import { getFieldsForType } from "../lib/selection";
 import { evaluateKey, flattenList } from "./stuff";
 class InMemorySubscriptions {
   cache;
@@ -14,18 +15,20 @@ class InMemorySubscriptions {
     variables,
     parentType
   }) {
-    for (const fieldSelection of Object.values(selection)) {
-      const { keyRaw, fields, type } = fieldSelection;
+    const __typename = this.cache._internal_unstable.storage.get(parent, "__typename").value;
+    let targetSelection = getFieldsForType(selection, __typename);
+    for (const fieldSelection of Object.values(targetSelection || {})) {
+      const { keyRaw, selection: innerSelection, type } = fieldSelection;
       const key = evaluateKey(keyRaw, variables);
       this.addFieldSubscription({
         id: parent,
         key,
-        selection: fieldSelection,
+        field: fieldSelection,
         spec,
         parentType: parentType || spec.rootType,
         variables
       });
-      if (fields) {
+      if (innerSelection) {
         const { value: linkedRecord } = this.cache._internal_unstable.storage.get(
           parent,
           key
@@ -38,7 +41,7 @@ class InMemorySubscriptions {
           this.add({
             parent: child,
             spec,
-            selection: fields,
+            selection: innerSelection,
             variables,
             parentType: type
           });
@@ -49,7 +52,7 @@ class InMemorySubscriptions {
   addFieldSubscription({
     id,
     key,
-    selection,
+    field,
     spec,
     parentType,
     variables
@@ -76,8 +79,8 @@ class InMemorySubscriptions {
     const counts = this.referenceCounts[id][key];
     counts.set(spec.set, (counts.get(spec.set) || 0) + 1);
     this.cache._internal_unstable.lifetimes.resetLifetime(id, key);
-    const { fields, list, filters } = selection;
-    if (fields && list) {
+    const { selection, list, filters } = field;
+    if (selection && list) {
       this.cache._internal_unstable.lists.add({
         name: list.name,
         connection: list.connection,
@@ -85,7 +88,7 @@ class InMemorySubscriptions {
         recordType: this.cache._internal_unstable.storage.get(id, "__typename")?.value || parentType,
         listType: list.type,
         key,
-        selection: fields,
+        selection,
         filters: Object.entries(filters || {}).reduce((acc, [key2, { kind, value }]) => {
           return {
             ...acc,
@@ -99,22 +102,24 @@ class InMemorySubscriptions {
     parent,
     selection,
     variables,
-    subscribers
+    subscribers,
+    parentType
   }) {
-    for (const fieldSelection of Object.values(selection)) {
-      const { keyRaw, fields } = fieldSelection;
+    let targetSelection = getFieldsForType(selection, parentType);
+    for (const fieldSelection of Object.values(targetSelection)) {
+      const { type: linkedType, keyRaw, selection: innerSelection } = fieldSelection;
       const key = evaluateKey(keyRaw, variables);
       for (const spec of subscribers) {
         this.addFieldSubscription({
           id: parent,
           key,
-          selection: fieldSelection,
+          field: fieldSelection,
           spec,
-          parentType: "asdf",
+          parentType,
           variables
         });
       }
-      if (fields) {
+      if (innerSelection) {
         const { value: link } = this.cache._internal_unstable.storage.get(parent, key);
         const children = !Array.isArray(link) ? [link] : flattenList(link);
         for (const linkedRecord of children) {
@@ -123,9 +128,10 @@ class InMemorySubscriptions {
           }
           this.addMany({
             parent: linkedRecord,
-            selection: fields,
+            selection: innerSelection,
             variables,
-            subscribers
+            subscribers,
+            parentType: linkedType
           });
         }
       }
@@ -134,22 +140,20 @@ class InMemorySubscriptions {
   get(id, field) {
     return this.subscribers[id]?.[field] || [];
   }
-  remove(id, fields, targets, variables, visited = []) {
+  remove(id, selection, targets, variables, visited = []) {
     visited.push(id);
     const linkedIDs = [];
-    for (const selection of Object.values(fields)) {
-      const key = evaluateKey(selection.keyRaw, variables);
+    for (const fieldSelection of Object.values(selection.fields || {})) {
+      const key = evaluateKey(fieldSelection.keyRaw, variables);
       this.removeSubscribers(id, key, targets);
-      if (!selection.fields) {
+      if (!fieldSelection.selection?.fields) {
         continue;
-      }
-      if (selection.list) {
       }
       const { value: previousValue } = this.cache._internal_unstable.storage.get(id, key);
       const links = !Array.isArray(previousValue) ? [previousValue] : flattenList(previousValue);
       for (const link of links) {
         if (link !== null) {
-          linkedIDs.push([link, selection.fields]);
+          linkedIDs.push([link, fieldSelection.selection || {}]);
         }
       }
     }

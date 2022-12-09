@@ -13,7 +13,7 @@ export type AllContent$result = {
         }
         readonly __typename: "Page"
     }) | ({
-        readonly articleImages: {
+        readonly images: {
             readonly header: string | null
             readonly author: string | null
         }

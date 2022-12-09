@@ -35,7 +35,6 @@ function offsetHandlers({
       if (!queryVariables.limit && !artifact.refetch.pageSize) {
         throw missingPageSizeError("loadNextPage");
       }
-      setFetching(true);
       const { result } = await executeQuery({
         client: await getCurrentClient(),
         artifact,
@@ -43,6 +42,7 @@ function offsetHandlers({
         session: await getSession(),
         cached: false,
         config,
+        setFetching,
         fetch: fetch2,
         metadata
       });
@@ -70,7 +70,6 @@ function offsetHandlers({
       if (!artifact.refetch.pageSize || count > artifact.refetch.pageSize) {
         queryVariables.limit = count;
       }
-      setFetching(true);
       const result = await fetch.call(this, {
         ...params,
         variables: queryVariables

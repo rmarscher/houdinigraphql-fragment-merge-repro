@@ -26,7 +26,6 @@ function cursorHandlers({
   }) => {
     const config = await getConfig();
     const client = await getCurrentClient();
-    setFetching(true);
     const loadVariables = {
       ...await extraVariables?.(),
       ...input
@@ -39,6 +38,7 @@ function cursorHandlers({
       artifact,
       variables: loadVariables,
       session: await getSession(),
+      setFetching,
       cached: false,
       config,
       fetch: fetch2,
@@ -134,7 +134,6 @@ function cursorHandlers({
       if (count && count > artifact.refetch.pageSize) {
         queryVariables[artifact.refetch.update === "prepend" ? "last" : "first"] = count;
       }
-      setFetching(true);
       const result = await fetch({
         ...params,
         variables: queryVariables

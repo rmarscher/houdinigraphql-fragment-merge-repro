@@ -9,10 +9,13 @@ class MutationStore extends BaseStore {
   artifact;
   kind = "HoudiniMutation";
   store;
+  setFetching(isFetching) {
+    this.store?.update((s) => ({ ...s, isFetching }));
+  }
   constructor({ artifact }) {
     super();
     this.artifact = artifact;
-    this.store = writable(this.nullState);
+    this.store = writable(this.initialState);
   }
   async mutate(variables, {
     metadata,
@@ -49,6 +52,7 @@ class MutationStore extends BaseStore {
         artifact: this.artifact,
         variables: newVariables,
         session: await getSession(),
+        setFetching: (val) => this.setFetching(val),
         cached: false,
         metadata,
         fetch
@@ -100,7 +104,7 @@ class MutationStore extends BaseStore {
   subscribe(...args) {
     return this.store.subscribe(...args);
   }
-  get nullState() {
+  get initialState() {
     return {
       data: null,
       errors: null,

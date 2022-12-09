@@ -1,7 +1,6 @@
 import { FetchContext } from '$houdini/runtime/lib/network';
 import type { QueryArtifact } from '$houdini/runtime/lib/types';
-import { CachePolicy, GraphQLObject, QueryResult } from '$houdini/runtime/lib/types';
-import { SubscriptionSpec, HoudiniFetchContext } from '$houdini/runtime/lib/types';
+import { CachePolicy, GraphQLObject, HoudiniFetchContext, QueryResult, SubscriptionSpec } from '$houdini/runtime/lib/types';
 import type { LoadEvent, RequestEvent } from '@sveltejs/kit';
 import { Readable, Writable } from 'svelte/store';
 import { BaseStore } from './store';
@@ -15,6 +14,8 @@ export declare class QueryStore<_Data extends GraphQLObject, _Input extends {}, 
     protected loadPending: boolean;
     protected subscriberCount: number;
     protected storeName: string;
+    protected setFetching(isFetching: boolean): void;
+    protected currentVariables(): Promise<_Input>;
     constructor({ artifact, storeName, variables }: StoreConfig<_Data, _Input, QueryArtifact>);
     /**
      * Fetch the data from the server
@@ -24,11 +25,9 @@ export declare class QueryStore<_Data extends GraphQLObject, _Input extends {}, 
     fetch(params?: ClientFetchParams<_Data, _Input>): Promise<QueryResult<_Data, _Input>>;
     fetch(params?: QueryStoreFetchParams<_Data, _Input>): Promise<QueryResult<_Data, _Input>>;
     get name(): string;
-    protected currentVariables(): Promise<_Input>;
     subscribe(...args: Parameters<Readable<QueryResult<_Data, _Input, _ExtraFields>>['subscribe']>): () => void;
     private fetchAndCache;
     private refreshSubscription;
-    protected setFetching(isFetching: boolean): void;
     private get initialState();
     extraFields(): _ExtraFields;
 }

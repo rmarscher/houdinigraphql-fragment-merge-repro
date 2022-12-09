@@ -1,7 +1,5 @@
-import { QueryStore } from '../runtime/stores'
+import { QueryStore } from '$houdini/plugins/houdini-svelte/runtime/stores'
 import artifact from '$houdini/artifacts/AllContent'
-
-// create the query store
 
 export class AllContentStore extends QueryStore {
 	constructor() {

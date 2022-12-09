@@ -3,7 +3,7 @@
 
 	const AllContent = graphql`
 		query AllContent {
-			allContent {
+      allContent {
         name
         ... on Page {
           images {

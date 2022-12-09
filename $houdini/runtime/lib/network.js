@@ -1,5 +1,6 @@
 import cache from "../cache";
 import * as log from "./log";
+import { extractFiles } from "./networkUtils";
 import {
   CachePolicy,
   DataSource
@@ -11,11 +12,42 @@ class HoudiniClient {
     this.fetchFn = networkFn;
     this.socket = subscriptionHandler;
   }
+  handleMultipart(params, args) {
+    const { clone, files } = extractFiles({
+      query: params.text,
+      variables: params.variables
+    });
+    if (files.size) {
+      const [url, req] = args;
+      let headers = {};
+      if (req?.headers) {
+        const filtered = Object.entries(req?.headers).filter(([key, value]) => {
+          return !(key.toLowerCase() == "content-type" && value.toLowerCase() == "application/json");
+        });
+        headers = Object.fromEntries(filtered);
+      }
+      const form = new FormData();
+      const operationJSON = JSON.stringify(clone);
+      form.set("operations", operationJSON);
+      const map = {};
+      let i = 0;
+      files.forEach((paths) => {
+        map[++i] = paths;
+      });
+      form.set("map", JSON.stringify(map));
+      i = 0;
+      files.forEach((paths, file) => {
+        form.set(`${++i}`, file, file.name);
+      });
+      return [url, { ...req, headers, body: form }];
+    }
+  }
   async sendRequest(ctx, params) {
     let url = "";
     const result = await this.fetchFn({
       fetch: async (...args) => {
-        const response = await ctx.fetch(...args);
+        const newArgs = this.handleMultipart(params, args);
+        const response = await ctx.fetch(...newArgs || args);
         if (response.url) {
           url = response.url;
         }
@@ -50,6 +82,7 @@ async function executeQuery({
   artifact,
   variables,
   session,
+  setFetching,
   cached,
   fetch,
   metadata
@@ -62,6 +95,7 @@ async function executeQuery({
       session
     },
     artifact,
+    setFetching,
     variables,
     cached
   });
@@ -75,11 +109,12 @@ async function executeQuery({
 }
 async function fetchQuery({
   client,
+  context,
   artifact,
   variables,
+  setFetching,
   cached = true,
-  policy,
-  context
+  policy
 }) {
   if (!client) {
     throw new Error("could not find houdini environment");
@@ -115,6 +150,7 @@ async function fetchQuery({
   setTimeout(() => {
     cache._internal_unstable.collectGarbage();
   }, 0);
+  setFetching(true);
   const result = await client.sendRequest(context, {
     text: artifact.raw,
     hash: artifact.hash,
